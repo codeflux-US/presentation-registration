@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Student Presentation Registration System</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="navbar">
+  <div class="navbar-inner">
+    <div class="brand" data-nav="home">
+      <span class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" stroke="currentColor" stroke-width="1.6"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.6"/></svg>
+      </span>
+      <span>SPRS</span>
+    </div>
+
+    <nav class="nav-links" id="navLinks">
+    </nav>
+
+    <button class="hamburger" id="hamburgerBtn" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main id="app">
+
+  <section class="view" id="view-home">
+    <div class="hero">
+      <div class="hero-content">
+        <h1>Student Presentation Registration System</h1>
+        <p>Register, manage and track your academic presentations with ease.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" data-nav="signup">Register Now</button>
+          <button class="btn btn-outline" data-nav="login">Login</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section container">
+      <h2 class="section-title">Why use SPRS?</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 4v16m8-8H4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Easy Registration</h3>
+          <p>Register presentations quickly with a guided, validated form.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.8"/></svg>
+          </div>
+          <h3>Team Management</h3>
+          <p>Manage individual and group members with dynamic team fields.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3>Presentation Tracking</h3>
+          <p>Track the live status of every presentation registration.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" stroke="currentColor" stroke-width="1.8"/></svg>
+          </div>
+          <h3>Secure Access</h3>
+          <p>JWT-based authentication keeps every account safe.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-login">
+    <div class="auth-wrapper">
+      <form class="auth-card" id="loginForm">
+        <h2>Welcome Back</h2>
+        <p class="auth-sub">Log in to your SPRS account</p>
+
+        <label>Email</label>
+        <input type="email" id="loginEmail" required autocomplete="email" />
+
+        <label>Password</label>
+        <input type="password" id="loginPassword" required autocomplete="current-password" />
+
+        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+          <span class="btn-text">Login</span>
+          <span class="spinner hidden"></span>
+        </button>
+
+        <p class="auth-switch">Don't have an account?
+          <a href="#" data-nav="signup">Register here</a>
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <section class="view" id="view-signup">
+    <div class="auth-wrapper">
+      <form class="auth-card" id="signupForm">
+        <h2>Create Account</h2>
+        <p class="auth-sub">Register as a student</p>
+
+        <label>Full Name</label>
+        <input type="text" id="signupName" required />
+
+        <label>Email</label>
+        <input type="email" id="signupEmail" required autocomplete="email" />
+
+        <label>Password</label>
+        <input type="password" id="signupPassword" required autocomplete="new-password" />
+
+        <label>Confirm Password</label>
+        <input type="password" id="signupConfirmPassword" required autocomplete="new-password" />
+
+        <button type="submit" class="btn btn-primary btn-block" id="signupBtn">
+          <span class="btn-text">Create Account</span>
+          <span class="spinner hidden"></span>
+        </button>
+
+        <p class="auth-switch">Already have an account?
+          <a href="#" data-nav="login">Login here</a>
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <section class="view" id="view-student-dashboard">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="muted" id="studentGreeting">Welcome back</p>
+        </div>
+        <button class="btn btn-primary" data-nav="new-registration">+ New Registration</button>
+      </div>
+
+      <div class="stats-grid" id="studentStatsGrid">
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Recent Registrations</h2>
+          <a href="#" class="link" data-nav="my-registrations">View all</a>
+        </div>
+        <div id="studentRecentList" class="table-wrap">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-new-registration">
+    <div class="container narrow">
+      <div class="page-head">
+        <div>
+          <h1 id="registrationFormTitle">New Registration</h1>
+          <p class="muted">Fill in the presentation details below.</p>
+        </div>
+      </div>
+
+      <form class="panel form-panel" id="registrationForm">
+        <input type="hidden" id="editingPresentationId" value="" />
+
+        <h3 class="form-section-title">Presentation Details</h3>
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>Presentation Topic</label>
+            <input type="text" id="regTopic" required maxlength="255" />
+          </div>
+          <div class="form-field">
+            <label>Subject</label>
+            <input type="text" id="regSubject" required maxlength="150" />
+          </div>
+          <div class="form-field">
+            <label>Section</label>
+            <select id="regSection" required>
+              <option value="">Select Section</option>
+              <option value="A">Section A</option>
+              <option value="B">Section B</option>
+              <option value="C">Section C</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Presentation Date</label>
+            <input type="date" id="regDate" required />
+          </div>
+          <div class="form-field">
+            <label>Presentation Time</label>
+            <input type="time" id="regTime" required />
+          </div>
+        </div>
+
+        <h3 class="form-section-title">Team Type</h3>
+        <div class="form-grid">
+          <div class="form-field full">
+            <label>Team Type</label>
+            <select id="regTeamType" required>
+              <option value="">Select Team Type</option>
+              <option value="Individual">Individual</option>
+              <option value="Team of 2">Team of 2</option>
+              <option value="Team of 3">Team of 3</option>
+              <option value="Team of 4">Team of 4</option>
+              <option value="Team of 5">Team of 5</option>
+            </select>
+          </div>
+        </div>
+
+        <h3 class="form-section-title">Team Members</h3>
+        <div id="teamMembersContainer" class="team-members-container">
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" data-nav="my-registrations">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="submitRegistrationBtn">
+            <span class="btn-text">Submit Registration</span>
+            <span class="spinner hidden"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="view" id="view-my-registrations">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>My Registrations</h1>
+          <p class="muted">All presentations you have registered.</p>
+        </div>
+        <button class="btn btn-primary" data-nav="new-registration">+ New Registration</button>
+      </div>
+
+      <div class="panel">
+        <div id="myRegistrationsList" class="table-wrap">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-registration-details">
+    <div class="container narrow" id="registrationDetailsPrintArea">
+      <div class="page-head no-print">
+        <div>
+          <h1>Registration Details</h1>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-outline" id="printRegistrationBtn">Print</button>
+        </div>
+      </div>
+      <div class="panel" id="registrationDetailsPanel">
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-profile">
+    <div class="container narrow">
+      <h1>Profile</h1>
+      <div class="panel" id="profilePanel">
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-guidelines">
+    <div class="container narrow">
+      <h1>Registration Guidelines</h1>
+      <div class="panel">
+        <ol class="guidelines-list">
+          <li>Enter accurate student information.</li>
+          <li>Use a valid roll number.</li>
+          <li>Team members must have unique roll numbers.</li>
+          <li>Select the correct section.</li>
+          <li>Select the correct date and time.</li>
+          <li>Verify information before submitting.</li>
+          <li>Students should arrive before the presentation time.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-about">
+    <div class="container narrow">
+      <h1>About SPRS</h1>
+      <div class="panel">
+        <p>The Student Presentation Registration System is designed to simplify the process of registering, managing and tracking student presentations and presentation teams.</p>
+        <h3 class="form-section-title">Technology Used</h3>
+        <div class="tech-grid">
+          <div class="tech-card">HTML5</div>
+          <div class="tech-card">CSS3</div>
+          <div class="tech-card">Vanilla JavaScript</div>
+          <div class="tech-card">Node.js</div>
+          <div class="tech-card">Express.js</div>
+          <div class="tech-card">MySQL</div>
+          <div class="tech-card">JWT</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-admin-dashboard">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>Admin Dashboard</h1>
+          <p class="muted">Overview of all presentation registrations.</p>
+        </div>
+      </div>
+      <div class="stats-grid" id="adminStatsGrid">
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-admin-registrations">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>All Registrations</h1>
+        </div>
+      </div>
+
+      <div class="panel filters-panel">
+        <div class="filters-grid">
+          <input type="text" id="adminSearchInput" placeholder="Search by Reg ID, Topic, Name, Roll No." />
+          <select id="adminFilterSection">
+            <option value="">All Sections</option>
+            <option value="A">Section A</option>
+            <option value="B">Section B</option>
+            <option value="C">Section C</option>
+          </select>
+          <input type="text" id="adminFilterSubject" placeholder="Filter by Subject" />
+          <select id="adminFilterTeamType">
+            <option value="">All Team Types</option>
+            <option value="Individual">Individual</option>
+            <option value="Team of 2">Team of 2</option>
+            <option value="Team of 3">Team of 3</option>
+            <option value="Team of 4">Team of 4</option>
+            <option value="Team of 5">Team of 5</option>
+          </select>
+          <select id="adminFilterStatus">
+            <option value="">All Statuses</option>
+            <option value="Registered">Registered</option>
+            <option value="Pending">Pending</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <input type="date" id="adminFilterDate" />
+          <select id="adminSortBy">
+            <option value="">Sort: Newest</option>
+            <option value="date">Sort: Date</option>
+            <option value="topic">Sort: Topic</option>
+            <option value="registration_id">Sort: Registration ID</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div id="adminRegistrationsList" class="table-wrap">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-admin-students">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>Students</h1>
+        </div>
+      </div>
+      <div class="panel">
+        <div id="adminStudentsList" class="table-wrap">
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="modal-overlay hidden" id="confirmModalOverlay">
+  <div class="modal">
+    <h3 id="confirmModalTitle">Are you sure?</h3>
+    <p id="confirmModalMessage"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="confirmModalCancelBtn">Cancel</button>
+      <button class="btn btn-danger" id="confirmModalConfirmBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="successModalOverlay">
+  <div class="modal">
+    <div class="modal-success-icon">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h3>Registration Successful</h3>
+    <div class="success-details" id="successDetails"></div>
+    <div class="modal-actions modal-actions-3">
+      <button class="btn btn-outline" id="successViewBtn">View Registration</button>
+      <button class="btn btn-outline" id="successPrintBtn">Print</button>
+      <button class="btn btn-primary" id="successAnotherBtn">Register Another</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="statusModalOverlay">
+  <div class="modal">
+    <h3>Update Status</h3>
+    <label>Select new status</label>
+    <select id="statusModalSelect">
+      <option value="Registered">Registered</option>
+      <option value="Pending">Pending</option>
+      <option value="Completed">Completed</option>
+      <option value="Cancelled">Cancelled</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="statusModalCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="statusModalConfirmBtn">Update</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
