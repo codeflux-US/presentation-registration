@@ -36,6 +36,8 @@ const pool = mysql.createPool({
   ssl: process.env.DB_SSL === 'true'
   ?{
     minVersion: 'TLSv1.2'
+  }
+  : undefined
 });
 
 function sendError(res, status, message) {
