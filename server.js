@@ -102,10 +102,20 @@ async function generateRegistrationId(connection) {
 }
 
 function authenticate(req, res, next) {
-  const token = req.cookies[COOKIE_NAME];
+  let token = req.cookies[COOKIE_NAME];
+
+  if (!token) {
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
+
   if (!token) {
     return sendError(res, 401, 'Not authenticated. Please log in.');
   }
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
