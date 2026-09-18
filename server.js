@@ -199,8 +199,8 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, 
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -217,8 +217,8 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
+    secure: true,
+    sameSite: 'none'
   });
   return sendSuccess(res, 200, { message: 'Logged out successfully.' });
 });
