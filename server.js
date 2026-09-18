@@ -216,6 +216,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     return sendSuccess(res, 200, {
       message: 'Login successful.',
+      token: token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
     });
   } catch (err) {
