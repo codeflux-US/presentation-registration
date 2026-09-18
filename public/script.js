@@ -1,53 +1,43 @@
 const API_BASE_URL = 'https://presentation-registration.vercel.app';
 
-async function apiRequest(endpoint, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Something went wrong.');
-  }
-
-  return data;
-}
-apiRequest('/api/presentations', {
-  method: 'POST',
-  body: JSON.stringify(payload)
-});
-
-let currentUser = null; 
-let currentPresentations = []; 
-
 async function apiRequest(url, options = {}) {
   const opts = {
     method: options.method || 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin'
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    },
+    credentials: 'include'
   };
-  if (options.body) opts.body = JSON.stringify(options.body);
 
-  const res = await fetch(url, opts);
+  if (options.body) {
+    opts.body = JSON.stringify(options.body);
+  }
+
+  const res = await fetch(`${API_BASE_URL}${url}`, opts);
+
   let data;
+
   try {
     data = await res.json();
   } catch {
-    data = { success: false, message: 'Unexpected server response.' };
+    data = {
+      success: false,
+      message: 'Unexpected server response.'
+    };
   }
+
   if (!res.ok) {
     const err = new Error(data.message || 'Request failed.');
     err.status = res.status;
     throw err;
   }
+
   return data;
 }
+
+let currentUser = null; 
+let currentPresentations = []; 
 
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
