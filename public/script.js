@@ -1,12 +1,18 @@
 const API_BASE_URL = 'https://presentation-registration.vercel.app';
 
 async function apiRequest(url, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const opts = {
     method: options.method || 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    },
+    headers,
     credentials: 'include'
   };
 
@@ -38,6 +44,7 @@ async function apiRequest(url, options = {}) {
 
 let currentUser = null; 
 let currentPresentations = []; 
+let accessToken = null;
 
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
@@ -170,10 +177,15 @@ function appendLogout(nav) {
 }
 
 async function checkAuthentication() {
+  if (!accessToken) {
+    currentUser = null;
+    return;
+  }
   try {
     const data = await apiRequest('/api/auth/me');
     currentUser = data.user;
   } catch {
+    accessToken = null;
     currentUser = null;
   }
 }
@@ -187,6 +199,8 @@ async function handleLogin(e) {
   setButtonLoading(btn, true);
   try {
     const data = await apiRequest('/api/auth/login', { method: 'POST', body: { email, password } });
+    accessToken = data.token;
+    currentUser = data.user;
     currentUser = data.user;
     showToast('Login successful.', 'success');
     document.getElementById('loginForm').reset();
@@ -232,6 +246,7 @@ async function logout() {
   try {
     await apiRequest('/api/auth/logout', { method: 'POST' });
   } catch { /* ignore */ }
+  accessToken = null;F
   currentUser = null;
   showToast('You have been logged out.', 'info');
   showView('home');
