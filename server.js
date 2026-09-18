@@ -77,12 +77,12 @@ async function generateRegistrationId(connection) {
   const year = new Date().getFullYear();
 
   await connection.execute(
-    'UPDATE registration_sequence SET last_value = last_value + 1 WHERE id = 1'
+    'UPDATE registration_sequence SET sequence_value = sequence_value + 1 WHERE id = 1'
   );
   const [rows] = await connection.execute(
-    'SELECT last_value FROM registration_sequence WHERE id = 1'
+    'SELECT sequence_value FROM registration_sequence WHERE id = 1'
   );
-  const seq = rows[0].last_value;
+  const seq = rows[0].sequence_value;
   const padded = String(seq).padStart(5, '0');
   return `SE-${year}-${padded}`;
 }
