@@ -1,2504 +1,559 @@
-const API_BASE_URL =
-  'https://presentation-registration.vercel.app';
+const API_BASE_URL = 'https://presentation-registration.vercel.app';
 
-async function apiRequest(
-  url,
-  options = {}
-) {
+async function apiRequest(url, options = {}) {
   const headers = {
-    'Content-Type':
-      'application/json',
-
+    'Content-Type': 'application/json',
     ...(options.headers || {})
   };
 
-  const requestOptions = {
-    method:
-      options.method || 'GET',
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
 
+  const opts = {
+    method: options.method || 'GET',
     headers,
-
-    credentials: 'include',
-
-    cache: 'no-store'
+    credentials: 'include'
   };
 
-  if (
-    options.body !== undefined
-  ) {
-    requestOptions.body =
-      JSON.stringify(
-        options.body
-      );
+  if (options.body) {
+    opts.body = JSON.stringify(options.body);
   }
 
-  let response;
-
-  try {
-    response =
-      await fetch(
-        `${API_BASE_URL}${url}`,
-        requestOptions
-      );
-  } catch (networkError) {
-    console.error(
-      'Network error:',
-      networkError
-    );
-
-    const error =
-      new Error(
-        'Unable to connect to the server. Please check the backend URL, CORS and internet connection.'
-      );
-
-    error.status = 0;
-
-    throw error;
-  }
+  const res = await fetch(`${API_BASE_URL}${url}`, opts);
 
   let data;
 
   try {
-    data =
-      await response.json();
+    data = await res.json();
   } catch {
     data = {
       success: false,
-      message:
-        'Unexpected server response.'
+      message: 'Unexpected server response.'
     };
   }
 
-  if (!response.ok) {
-    const error =
-      new Error(
-        data.message ||
-        'Request failed.'
-      );
-
-    error.status =
-      response.status;
-
-    throw error;
+  if (!res.ok) {
+    const err = new Error(data.message || 'Request failed.');
+    err.status = res.status;
+    throw err;
   }
 
   return data;
 }
 
 let currentUser = null;
-
 let currentPresentations = [];
+let accessToken = null;
 
-function showToast(
-  message,
-  type = 'info'
-) {
-  const container =
-    document.getElementById(
-      'toastContainer'
-    );
-
-  if (!container) {
-    console.warn(
-      'toastContainer not found:',
-      message
-    );
-
-    return;
-  }
-
-  const toast =
-    document.createElement(
-      'div'
-    );
-
-  toast.className =
-    `toast toast-${type}`;
-
-  toast.textContent =
-    message;
-
-  container.appendChild(
-    toast
-  );
-
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = '0';
-
-    toast.style.transition =
-      'opacity 0.3s ease';
-
-    setTimeout(
-      () => {
-        toast.remove();
-      },
-      300
-    );
+    toast.style.transition = 'opacity 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
   }, 3800);
 }
 
-function setButtonLoading(
-  btn,
-  loading
-) {
+function setButtonLoading(btn, loading) {
   if (!btn) return;
-
-  const text =
-    btn.querySelector(
-      '.btn-text'
-    );
-
-  const spinner =
-    btn.querySelector(
-      '.spinner'
-    );
-
-  btn.disabled =
-    loading;
-
-  if (spinner) {
-    spinner.classList.toggle(
-      'hidden',
-      !loading
-    );
-  }
-
-  if (text) {
-    text.style.opacity =
-      loading
-        ? '0.6'
-        : '1';
-  }
+  const text = btn.querySelector('.btn-text');
+  const spinner = btn.querySelector('.spinner');
+  btn.disabled = loading;
+  if (spinner) spinner.classList.toggle('hidden', !loading);
+  if (text) text.style.opacity = loading ? '0.6' : '1';
 }
 
-function showConfirmModal(
-  title,
-  message
-) {
-  const overlay =
-    document.getElementById(
-      'confirmModalOverlay'
-    );
+function showConfirmModal(title, message) {
+  const overlay = document.getElementById('confirmModalOverlay');
+  document.getElementById('confirmModalTitle').textContent = title;
+  document.getElementById('confirmModalMessage').textContent = message;
+  overlay.classList.remove('hidden');
 
-  const titleElement =
-    document.getElementById(
-      'confirmModalTitle'
-    );
+  return new Promise((resolve) => {
+    const confirmBtn = document.getElementById('confirmModalConfirmBtn');
+    const cancelBtn = document.getElementById('confirmModalCancelBtn');
 
-  const messageElement =
-    document.getElementById(
-      'confirmModalMessage'
-    );
-
-  const confirmBtn =
-    document.getElementById(
-      'confirmModalConfirmBtn'
-    );
-
-  const cancelBtn =
-    document.getElementById(
-      'confirmModalCancelBtn'
-    );
-
-  if (
-    !overlay ||
-    !titleElement ||
-    !messageElement ||
-    !confirmBtn ||
-    !cancelBtn
-  ) {
-    return Promise.resolve(
-      window.confirm(
-        `${title}\n\n${message}`
-      )
-    );
-  }
-
-  titleElement.textContent =
-    title;
-
-  messageElement.textContent =
-    message;
-
-  overlay.classList.remove(
-    'hidden'
-  );
-
-  return new Promise(
-    resolve => {
-      function cleanup(
-        result
-      ) {
-        overlay.classList.add(
-          'hidden'
-        );
-
-        confirmBtn.removeEventListener(
-          'click',
-          onConfirm
-        );
-
-        cancelBtn.removeEventListener(
-          'click',
-          onCancel
-        );
-
-        resolve(result);
-      }
-
-      function onConfirm() {
-        cleanup(true);
-      }
-
-      function onCancel() {
-        cleanup(false);
-      }
-
-      confirmBtn.addEventListener(
-        'click',
-        onConfirm
-      );
-
-      cancelBtn.addEventListener(
-        'click',
-        onCancel
-      );
+    function cleanup(result) {
+      overlay.classList.add('hidden');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
     }
-  );
+    function onConfirm() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+  });
 }
 
-const PUBLIC_VIEWS = [
-  'home',
-  'login',
-  'signup',
-  'guidelines',
-  'about'
-];
+const PUBLIC_VIEWS = ['home', 'login', 'signup', 'guidelines', 'about'];
+const STUDENT_VIEWS = ['student-dashboard', 'new-registration', 'my-registrations', 'registration-details', 'profile'];
+const ADMIN_VIEWS = ['admin-dashboard', 'admin-registrations', 'admin-students', 'profile', 'registration-details'];
+// Views that ONLY an admin may see (i.e. admin views that aren't shared with students)
+const ADMIN_ONLY_VIEWS = ADMIN_VIEWS.filter(v => !STUDENT_VIEWS.includes(v));
+const AUTH_REQUIRED_VIEWS = Array.from(new Set([...STUDENT_VIEWS, ...ADMIN_VIEWS]));
 
-const STUDENT_VIEWS = [
-  'student-dashboard',
-  'new-registration',
-  'my-registrations',
-  'registration-details',
-  'profile'
-];
-
-const ADMIN_VIEWS = [
-  'admin-dashboard',
-  'admin-registrations',
-  'admin-students',
-  'profile',
-  'registration-details'
-];
-
-async function showView(
-  viewName,
-  params = {}
-) {
-  
-  if (
-    STUDENT_VIEWS.includes(
-      viewName
-    ) &&
-    !currentUser
-  ) {
+async function showView(viewName, params = {}) {
+  // Not logged in but trying to reach any protected view -> send to login first.
+  if (AUTH_REQUIRED_VIEWS.includes(viewName) && !currentUser) {
     viewName = 'login';
+  } else if (ADMIN_ONLY_VIEWS.includes(viewName) && currentUser && currentUser.role !== 'admin') {
+    // Logged in as a non-admin trying to reach an admin-only view.
+    viewName = 'student-dashboard';
+  }
+  if ((viewName === 'login' || viewName === 'signup') && currentUser) {
+    viewName = currentUser.role === 'admin' ? 'admin-dashboard' : 'student-dashboard';
   }
 
-  if (
-    ADMIN_VIEWS.includes(
-      viewName
-    ) &&
-    currentUser &&
-    currentUser.role !== 'admin' &&
-    !STUDENT_VIEWS.includes(
-      viewName
-    )
-  ) {
-    viewName =
-      'student-dashboard';
-  }
-
-  if (
-    (
-      viewName === 'login' ||
-      viewName === 'signup'
-    ) &&
-    currentUser
-  ) {
-    viewName =
-      currentUser.role === 'admin'
-        ? 'admin-dashboard'
-        : 'student-dashboard';
-  }
-
-  document
-    .querySelectorAll(
-      '.view'
-    )
-    .forEach(
-      view => {
-        view.classList.remove(
-          'active'
-        );
-      }
-    );
-
-  const target =
-    document.getElementById(
-      `view-${viewName}`
-    );
-
-  if (!target) {
-    console.error(
-      `View not found: view-${viewName}`
-    );
-
-    return;
-  }
-
-  target.classList.add(
-    'active'
-  );
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const target = document.getElementById(`view-${viewName}`);
+  if (target) target.classList.add('active');
 
   closeMobileMenu();
-
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth'
-  });
-
-  renderNav(
-    viewName
-  );
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  renderNav(viewName);
 
   try {
-    if (
-      viewName ===
-      'student-dashboard'
-    ) {
-      await loadDashboard();
-    }
-
-    if (
-      viewName ===
-      'my-registrations'
-    ) {
-      await loadRegistrations();
-    }
-
-    if (
-      viewName ===
-      'new-registration'
-    ) {
-      await setupRegistrationForm(
-        params.editId ||
-          null
-      );
-    }
-
-    if (
-      viewName ===
-      'registration-details'
-    ) {
-      await viewRegistration(
-        params.id
-      );
-    }
-
-    if (
-      viewName ===
-      'profile'
-    ) {
-      await loadProfile();
-    }
-
-    if (
-      viewName ===
-      'admin-dashboard'
-    ) {
-      await loadAdminDashboard();
-    }
-
-    if (
-      viewName ===
-      'admin-registrations'
-    ) {
-      await searchRegistrations();
-    }
-
-    if (
-      viewName ===
-      'admin-students'
-    ) {
-      await loadAdminStudents();
-    }
-
-  } catch (error) {
-    console.error(
-      `Error loading ${viewName}:`,
-      error
-    );
-
-    showToast(
-      error.message ||
-        'Something went wrong.',
-      'error'
-    );
+    if (viewName === 'student-dashboard') await loadDashboard();
+    if (viewName === 'my-registrations') await loadRegistrations();
+    if (viewName === 'new-registration') await setupRegistrationForm(params.editId || null);
+    if (viewName === 'registration-details') await viewRegistration(params.id);
+    if (viewName === 'profile') await loadProfile();
+    if (viewName === 'admin-dashboard') await loadAdminDashboard();
+    if (viewName === 'admin-registrations') await searchRegistrations();
+    if (viewName === 'admin-students') await loadAdminStudents();
+  } catch (err) {
+    showToast(err.message || 'Something went wrong.', 'error');
   }
 }
 
 function closeMobileMenu() {
-  const navLinks =
-    document.getElementById(
-      'navLinks'
-    );
-
-  if (!navLinks) {
-    return;
-  }
-
-  navLinks.classList.remove(
-    'open'
-  );
+  document.getElementById('navLinks').classList.remove('open');
 }
 
-function renderNav(
-  activeView
-) {
-  const nav =
-    document.getElementById(
-      'navLinks'
-    );
-
-  if (!nav) {
-    return;
-  }
-
+function renderNav(activeView) {
+  const nav = document.getElementById('navLinks');
   nav.innerHTML = '';
 
-  function createLink(
-    label,
-    view
-  ) {
-    const anchor =
-      document.createElement(
-        'a'
-      );
-
-    anchor.href = '#';
-
-    anchor.textContent =
-      label;
-
-    anchor.dataset.nav =
-      view;
-
-    if (
-      activeView ===
-      view
-    ) {
-      anchor.classList.add(
-        'active'
-      );
-    }
-
-    anchor.addEventListener(
-      'click',
-      event => {
-        event.preventDefault();
-
-        showView(
-          view
-        );
-      }
-    );
-
-    return anchor;
+  function link(label, view) {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = label;
+    a.dataset.nav = view;
+    if (activeView === view) a.classList.add('active');
+    a.addEventListener('click', (e) => { e.preventDefault(); showView(view); });
+    return a;
   }
 
   if (!currentUser) {
-    nav.appendChild(
-      createLink(
-        'Home',
-        'home'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Guidelines',
-        'guidelines'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'About',
-        'about'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Login',
-        'login'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Register',
-        'signup'
-      )
-    );
-
-    return;
-  }
-
-  if (
-    currentUser.role ===
-    'student'
-  ) {
-    nav.appendChild(
-      createLink(
-        'Dashboard',
-        'student-dashboard'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'New Registration',
-        'new-registration'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'My Registrations',
-        'my-registrations'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Profile',
-        'profile'
-      )
-    );
-
+    nav.appendChild(link('Home', 'home'));
+    nav.appendChild(link('Guidelines', 'guidelines'));
+    nav.appendChild(link('About', 'about'));
+    nav.appendChild(link('Login', 'login'));
+    nav.appendChild(link('Register', 'signup'));
+  } else if (currentUser.role === 'student') {
+    nav.appendChild(link('Dashboard', 'student-dashboard'));
+    nav.appendChild(link('New Registration', 'new-registration'));
+    nav.appendChild(link('My Registrations', 'my-registrations'));
+    nav.appendChild(link('Profile', 'profile'));
     appendLogout(nav);
-
-    return;
-  }
-
-  if (
-    currentUser.role ===
-    'admin'
-  ) {
-    nav.appendChild(
-      createLink(
-        'Dashboard',
-        'admin-dashboard'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Registrations',
-        'admin-registrations'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Students',
-        'admin-students'
-      )
-    );
-
-    nav.appendChild(
-      createLink(
-        'Profile',
-        'profile'
-      )
-    );
-
+  } else if (currentUser.role === 'admin') {
+    nav.appendChild(link('Dashboard', 'admin-dashboard'));
+    nav.appendChild(link('Registrations', 'admin-registrations'));
+    nav.appendChild(link('Students', 'admin-students'));
+    nav.appendChild(link('Profile', 'profile'));
     appendLogout(nav);
   }
 }
 
-function appendLogout(
-  nav
-) {
-  const button =
-    document.createElement(
-      'button'
-    );
-
-  button.type =
-    'button';
-
-  button.textContent =
-    'Logout';
-
-  button.className =
-    'btn-logout';
-
-  button.addEventListener(
-    'click',
-    async event => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      await logout();
-    }
-  );
-
-  nav.appendChild(
-    button
-  );
+function appendLogout(nav) {
+  const btn = document.createElement('button');
+  btn.textContent = 'Logout';
+  btn.className = 'btn-logout';
+  btn.addEventListener('click', logout);
+  nav.appendChild(btn);
 }
 
 async function checkAuthentication() {
+  // Always try /api/auth/me: the session cookie (httpOnly, sent via credentials:'include')
+  // may still be valid even if the in-memory accessToken was lost on page reload.
   try {
-    const data =
-      await apiRequest(
-        '/api/auth/me'
-      );
-
-    currentUser =
-      data.user || null;
-
-    return currentUser;
-
-  } catch (error) {
-    currentUser =
-      null;
-
-    return null;
+    const data = await apiRequest('/api/auth/me');
+    currentUser = data.user;
+  } catch {
+    accessToken = null;
+    currentUser = null;
   }
 }
 
-async function handleLogin(
-  event
-) {
-  event.preventDefault();
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
 
-  const button =
-    document.getElementById(
-      'loginBtn'
-    );
-
-  const emailInput =
-    document.getElementById(
-      'loginEmail'
-    );
-
-  const passwordInput =
-    document.getElementById(
-      'loginPassword'
-    );
-
-  if (
-    !emailInput ||
-    !passwordInput
-  ) {
-    showToast(
-      'Login form is not available.',
-      'error'
-    );
-
-    return;
-  }
-
-  const email =
-    emailInput.value
-      .trim();
-
-  const password =
-    passwordInput.value;
-
-  if (
-    !email ||
-    !password
-  ) {
-    showToast(
-      'Email and password are required.',
-      'warning'
-    );
-
-    return;
-  }
-
-  setButtonLoading(
-    button,
-    true
-  );
-
+  setButtonLoading(btn, true);
   try {
-    const data =
-      await apiRequest(
-        '/api/auth/login',
-        {
-          method: 'POST',
-
-          body: {
-            email,
-            password
-          }
-        }
-      );
-
-    currentUser =
-      data.user || null;
-
-    if (!currentUser) {
-      throw new Error(
-        'Login succeeded but user information was not returned.'
-      );
-    }
-
-    showToast(
-      'Login successful.',
-      'success'
-    );
-
-    const form =
-      document.getElementById(
-        'loginForm'
-      );
-
-    if (form) {
-      form.reset();
-    }
-
-    await showView(
-      currentUser.role ===
-        'admin'
-        ? 'admin-dashboard'
-        : 'student-dashboard'
-    );
-
-  } catch (error) {
-    console.error(
-      'Login error:',
-      error
-    );
-
-    showToast(
-      error.message ||
-        'Invalid email or password.',
-      'error'
-    );
-
+    const data = await apiRequest('/api/auth/login', { method: 'POST', body: { email, password } });
+    accessToken = data.token;
+    currentUser = data.user;
+    showToast('Login successful.', 'success');
+    document.getElementById('loginForm').reset();
+    showView(currentUser.role === 'admin' ? 'admin-dashboard' : 'student-dashboard');
+  } catch (err) {
+    showToast(err.message || 'Invalid email or password.', 'error');
   } finally {
-    setButtonLoading(
-      button,
-      false
-    );
+    setButtonLoading(btn, false);
   }
 }
 
-async function handleSignup(
-  event
-) {
-  event.preventDefault();
+async function handleSignup(e) {
+  e.preventDefault();
+  const btn = document.getElementById('signupBtn');
+  const name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const confirmPassword = document.getElementById('signupConfirmPassword').value;
 
-  const button =
-    document.getElementById(
-      'signupBtn'
-    );
-
-  const nameInput =
-    document.getElementById(
-      'signupName'
-    );
-
-  const emailInput =
-    document.getElementById(
-      'signupEmail'
-    );
-
-  const passwordInput =
-    document.getElementById(
-      'signupPassword'
-    );
-
-  const confirmInput =
-    document.getElementById(
-      'signupConfirmPassword'
-    );
-
-  if (
-    !nameInput ||
-    !emailInput ||
-    !passwordInput ||
-    !confirmInput
-  ) {
-    showToast(
-      'Signup form is not available.',
-      'error'
-    );
-
+  if (password.length < 8) {
+    showToast('Password must be at least 8 characters.', 'warning');
+    return;
+  }
+  if (password !== confirmPassword) {
+    showToast('Passwords do not match.', 'warning');
     return;
   }
 
-  const name =
-    nameInput.value
-      .trim();
-
-  const email =
-    emailInput.value
-      .trim();
-
-  const password =
-    passwordInput.value;
-
-  const confirmPassword =
-    confirmInput.value;
-
-  if (!name) {
-    showToast(
-      'Full name is required.',
-      'warning'
-    );
-
-    return;
-  }
-
-  if (!email) {
-    showToast(
-      'Email is required.',
-      'warning'
-    );
-
-    return;
-  }
-
-  if (
-    password.length < 8
-  ) {
-    showToast(
-      'Password must be at least 8 characters.',
-      'warning'
-    );
-
-    return;
-  }
-
-  if (
-    password !==
-    confirmPassword
-  ) {
-    showToast(
-      'Passwords do not match.',
-      'warning'
-    );
-
-    return;
-  }
-
-  setButtonLoading(
-    button,
-    true
-  );
-
+  setButtonLoading(btn, true);
   try {
-    await apiRequest(
-      '/api/auth/register',
-      {
-        method: 'POST',
-
-        body: {
-          name,
-          email,
-          password,
-          confirmPassword
-        }
-      }
-    );
-
-    showToast(
-      'Account created successfully. Please log in.',
-      'success'
-    );
-
-    const form =
-      document.getElementById(
-        'signupForm'
-      );
-
-    if (form) {
-      form.reset();
-    }
-
-    await showView(
-      'login'
-    );
-
-  } catch (error) {
-    console.error(
-      'Signup error:',
-      error
-    );
-
-    showToast(
-      error.message ||
-        'Could not create account.',
-      'error'
-    );
-
+    await apiRequest('/api/auth/register', { method: 'POST', body: { name, email, password, confirmPassword } });
+    showToast('Account created successfully. Please log in.', 'success');
+    document.getElementById('signupForm').reset();
+    showView('login');
+  } catch (err) {
+    showToast(err.message || 'Could not create account.', 'error');
   } finally {
-    setButtonLoading(
-      button,
-      false
-    );
+    setButtonLoading(btn, false);
   }
 }
 
 async function logout() {
   try {
-    await apiRequest(
-      '/api/auth/logout',
-      {
-        method: 'POST'
-      }
-    );
-
-    currentUser =
-      null;
-
-    currentPresentations =
-      [];
-
-    showToast(
-      'You have been logged out.',
-      'success'
-    );
-
-    await showView(
-      'home'
-    );
-
-  } catch (error) {
-    console.error(
-      'Logout error:',
-      error
-    );
-    
-    currentUser =
-      null;
-
-    currentPresentations =
-      [];
-
-    showToast(
-      'Logout request failed. Please try again.',
-      'error'
-    );
-
-    await showView(
-      'login'
-    );
-  }
+    await apiRequest('/api/auth/logout', { method: 'POST' });
+  } catch { /* ignore */ }
+  accessToken = null;
+  currentUser = null;
+  showToast('You have been logged out.', 'info');
+  showView('home');
 }
 
 async function loadDashboard() {
-  const greeting =
-    document.getElementById(
-      'studentGreeting'
-    );
+  document.getElementById('studentGreeting').textContent = `Welcome back, ${currentUser.name}`;
 
-  if (
-    greeting &&
-    currentUser
-  ) {
-    greeting.textContent =
-      `Welcome back, ${currentUser.name}`;
-  }
+  const grid = document.getElementById('studentStatsGrid');
+  grid.innerHTML = `<div class="page-loading">Loading dashboard...</div>`;
 
-  const grid =
-    document.getElementById(
-      'studentStatsGrid'
-    );
+  const data = await apiRequest('/api/presentations');
+  currentPresentations = data.presentations;
 
-  if (!grid) {
-    return;
-  }
+  const total = currentPresentations.length;
+  const counts = { Registered: 0, Pending: 0, Completed: 0, Cancelled: 0 };
+  currentPresentations.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
 
-  grid.innerHTML =
-    `
-      <div class="page-loading">
-        Loading dashboard...
-      </div>
-    `;
+  grid.innerHTML = `
+    <div class="stat-card accent-navy"><div class="stat-value">${total}</div><div class="stat-label">Total Registrations</div></div>
+    <div class="stat-card accent-blue"><div class="stat-value">${counts.Registered}</div><div class="stat-label">Registered</div></div>
+    <div class="stat-card accent-amber"><div class="stat-value">${counts.Pending}</div><div class="stat-label">Pending</div></div>
+    <div class="stat-card accent-green"><div class="stat-value">${counts.Completed}</div><div class="stat-label">Completed</div></div>
+    <div class="stat-card accent-red"><div class="stat-value">${counts.Cancelled}</div><div class="stat-label">Cancelled</div></div>
+  `;
 
-  const data =
-    await apiRequest(
-      '/api/presentations'
-    );
-
-  currentPresentations =
-    Array.isArray(
-      data.presentations
-    )
-      ? data.presentations
-      : [];
-
-  const total =
-    currentPresentations.length;
-
-  const counts = {
-    Registered: 0,
-    Pending: 0,
-    Completed: 0,
-    Cancelled: 0
-  };
-
-  currentPresentations.forEach(
-    presentation => {
-      counts[
-        presentation.status
-      ] =
-        (
-          counts[
-            presentation.status
-          ] || 0
-        ) + 1;
-    }
-  );
-
-  grid.innerHTML =
-    `
-      <div class="stat-card accent-navy">
-        <div class="stat-value">
-          ${total}
-        </div>
-        <div class="stat-label">
-          Total Registrations
-        </div>
-      </div>
-
-      <div class="stat-card accent-blue">
-        <div class="stat-value">
-          ${counts.Registered}
-        </div>
-        <div class="stat-label">
-          Registered
-        </div>
-      </div>
-
-      <div class="stat-card accent-amber">
-        <div class="stat-value">
-          ${counts.Pending}
-        </div>
-        <div class="stat-label">
-          Pending
-        </div>
-      </div>
-
-      <div class="stat-card accent-green">
-        <div class="stat-value">
-          ${counts.Completed}
-        </div>
-        <div class="stat-label">
-          Completed
-        </div>
-      </div>
-
-      <div class="stat-card accent-red">
-        <div class="stat-value">
-          ${counts.Cancelled}
-        </div>
-        <div class="stat-label">
-          Cancelled
-        </div>
-      </div>
-    `;
-
-  const recent =
-    currentPresentations.slice(
-      0,
-      5
-    );
-
-  const list =
-    document.getElementById(
-      'studentRecentList'
-    );
-
-  if (!list) {
-    return;
-  }
-
-  list.innerHTML =
-    renderPresentationsTable(
-      recent,
-      false
-    );
-
-  attachRowActionListeners(
-    list
-  );
+  const recent = currentPresentations.slice(0, 5);
+  const listEl = document.getElementById('studentRecentList');
+  listEl.innerHTML = renderPresentationsTable(recent, false);
+  attachRowActionListeners(listEl, false);
 }
 
 async function loadRegistrations() {
-  const list =
-    document.getElementById(
-      'myRegistrationsList'
-    );
+  const listEl = document.getElementById('myRegistrationsList');
+  listEl.innerHTML = `<div class="page-loading">Loading registrations...</div>`;
 
-  if (!list) {
-    return;
-  }
+  const data = await apiRequest('/api/presentations');
+  currentPresentations = data.presentations;
 
-  list.innerHTML =
-    `
-      <div class="page-loading">
-        Loading registrations...
-      </div>
-    `;
-
-  const data =
-    await apiRequest(
-      '/api/presentations'
-    );
-
-  currentPresentations =
-    Array.isArray(
-      data.presentations
-    )
-      ? data.presentations
-      : [];
-
-  list.innerHTML =
-    renderPresentationsTable(
-      currentPresentations,
-      true
-    );
-
-  attachRowActionListeners(
-    list
-  );
+  listEl.innerHTML = renderPresentationsTable(currentPresentations, true);
+  attachRowActionListeners(listEl, true);
 }
 
-function statusBadge(
-  status
-) {
-  const classes = {
-    Registered:
-      'badge-registered',
-
-    Pending:
-      'badge-pending',
-
-    Completed:
-      'badge-completed',
-
-    Cancelled:
-      'badge-cancelled'
-  };
-
-  return `
-    <span class="badge ${
-      classes[status] || ''
-    }">
-      ${escapeHtml(status)}
-    </span>
-  `;
+function statusBadge(status) {
+  const map = { Registered: 'badge-registered', Pending: 'badge-pending', Completed: 'badge-completed', Cancelled: 'badge-cancelled' };
+  return `<span class="badge ${map[status] || ''}">${status}</span>`;
 }
 
-function renderPresentationsTable(
-  list,
-  withActions
-) {
-  if (
-    !list ||
-    list.length === 0
-  ) {
-    return `
-      <div class="empty-state">
-
-        <svg
-          width="40"
-          height="40"
-          viewBox="0 0 24 24"
-          fill="none"
-        >
-          <path
-            d="M9 12h6m-6 4h6M9 8h6M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
-            stroke="currentColor"
-            stroke-width="1.5"
-          />
-        </svg>
-
-        <p>
-          No registrations found.
-        </p>
-
-      </div>
-    `;
+function renderPresentationsTable(list, withActions) {
+  if (!list || list.length === 0) {
+    return `<div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M9 12h6m-6 4h6M9 8h6M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5"/></svg>
+      <p>No registrations found.</p>
+    </div>`;
   }
 
-  const rows =
-    list
-      .map(
-        presentation => `
-          <tr
-            data-id="${escapeHtml(
-              presentation.id
-            )}"
-          >
+  const rows = list.map(p => `
+    <tr data-id="${p.id}">
+      <td>${p.registration_id}</td>
+      <td>${escapeHtml(p.topic)}</td>
+      <td>${escapeHtml(p.subject)}</td>
+      <td>Section ${p.section}</td>
+      <td>${p.team_type}</td>
+      <td>${formatDate(p.presentation_date)}</td>
+      <td>${p.presentation_time}</td>
+      <td>${statusBadge(p.status)}</td>
+      ${withActions ? `<td>
+        <button class="btn btn-sm btn-outline action-view">View</button>
+        ${p.status !== 'Cancelled' ? `<button class="btn btn-sm btn-outline action-edit">Edit</button>
+        <button class="btn btn-sm btn-danger action-cancel">Cancel</button>` : ''}
+      </td>` : `<td><button class="btn btn-sm btn-outline action-view">View</button></td>`}
+    </tr>
+  `).join('');
 
-            <td>
-              ${escapeHtml(
-                presentation.registration_id
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.topic
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.subject
-              )}
-            </td>
-
-            <td>
-              Section
-              ${escapeHtml(
-                presentation.section
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.team_type
-              )}
-            </td>
-
-            <td>
-              ${formatDate(
-                presentation.presentation_date
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.presentation_time
-              )}
-            </td>
-
-            <td>
-              ${statusBadge(
-                presentation.status
-              )}
-            </td>
-
-            ${
-              withActions
-                ? `
-                  <td>
-
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-outline action-view"
-                    >
-                      View
-                    </button>
-
-                    ${
-                      presentation.status !==
-                      'Cancelled'
-                        ? `
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-outline action-edit"
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-danger action-cancel"
-                          >
-                            Cancel
-                          </button>
-                        `
-                        : ''
-                    }
-
-                  </td>
-                `
-                : `
-                  <td>
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-outline action-view"
-                    >
-                      View
-                    </button>
-                  </td>
-                `
-            }
-
-          </tr>
-        `
-      )
-      .join('');
-
-  return `
-    <div class="table-wrap">
-
-      <table class="data-table">
-
-        <thead>
-          <tr>
-            <th>Reg. ID</th>
-            <th>Topic</th>
-            <th>Subject</th>
-            <th>Section</th>
-            <th>Team Type</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          ${rows}
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+  return `<table class="data-table">
+    <thead><tr>
+      <th>Reg. ID</th><th>Topic</th><th>Subject</th><th>Section</th><th>Team Type</th><th>Date</th><th>Time</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
-function attachRowActionListeners(
-  container
-) {
-  if (!container) {
-    return;
-  }
+function attachRowActionListeners(container, withFullActions) {
+  container.querySelectorAll('tr[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    const viewBtn = row.querySelector('.action-view');
+    if (viewBtn) viewBtn.addEventListener('click', () => showView('registration-details', { id }));
 
-  container
-    .querySelectorAll(
-      'tr[data-id]'
-    )
-    .forEach(
-      row => {
-        const id =
-          row.dataset.id;
+    const editBtn = row.querySelector('.action-edit');
+    if (editBtn) editBtn.addEventListener('click', () => showView('new-registration', { editId: id }));
 
-        const viewButton =
-          row.querySelector(
-            '.action-view'
-          );
-
-        if (viewButton) {
-          viewButton.addEventListener(
-            'click',
-            () => {
-              showView(
-                'registration-details',
-                {
-                  id
-                }
-              );
-            }
-          );
-        }
-
-        const editButton =
-          row.querySelector(
-            '.action-edit'
-          );
-
-        if (editButton) {
-          editButton.addEventListener(
-            'click',
-            () => {
-              showView(
-                'new-registration',
-                {
-                  editId: id
-                }
-              );
-            }
-          );
-        }
-
-        const cancelButton =
-          row.querySelector(
-            '.action-cancel'
-          );
-
-        if (cancelButton) {
-          cancelButton.addEventListener(
-            'click',
-            () => {
-              cancelRegistration(
-                id
-              );
-            }
-          );
-        }
-      }
-    );
+    const cancelBtn = row.querySelector('.action-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => cancelRegistration(id));
+  });
 }
 
-async function cancelRegistration(
-  id
-) {
-  const confirmed =
-    await showConfirmModal(
-      'Cancel Registration',
-      'Are you sure you want to cancel this registration?'
-    );
-
-  if (!confirmed) {
-    return;
-  }
+async function cancelRegistration(id) {
+  const confirmed = await showConfirmModal('Cancel Registration', 'Are you sure you want to cancel this registration?');
+  if (!confirmed) return;
 
   try {
-    await apiRequest(
-      `/api/presentations/${encodeURIComponent(
-        id
-      )}`,
-      {
-        method: 'DELETE'
-      }
-    );
-
-    showToast(
-      'Registration cancelled successfully.',
-      'success'
-    );
-
-    const registrationsView =
-      document.getElementById(
-        'view-my-registrations'
-      );
-
-    if (
-      registrationsView &&
-      registrationsView.classList.contains(
-        'active'
-      )
-    ) {
-      await loadRegistrations();
+    await apiRequest(`/api/presentations/${id}`, { method: 'DELETE' });
+    showToast('Registration cancelled successfully.', 'success');
+    if (document.getElementById('view-my-registrations').classList.contains('active')) {
+      loadRegistrations();
     } else {
-      await loadDashboard();
+      loadDashboard();
     }
-
-  } catch (error) {
-    console.error(
-      'Cancel registration error:',
-      error
-    );
-
-    showToast(
-      error.message ||
-        'Could not cancel registration.',
-      'error'
-    );
+  } catch (err) {
+    showToast(err.message || 'Could not cancel registration.', 'error');
   }
 }
 
-async function setupRegistrationForm(
-  editId
-) {
-  const form =
-    document.getElementById(
-      'registrationForm'
-    );
-
-  const editingId =
-    document.getElementById(
-      'editingPresentationId'
-    );
-
-  const title =
-    document.getElementById(
-      'registrationFormTitle'
-    );
-
-  const membersContainer =
-    document.getElementById(
-      'teamMembersContainer'
-    );
-
-  if (!form) {
-    return;
-  }
-
+async function setupRegistrationForm(editId) {
+  const form = document.getElementById('registrationForm');
   form.reset();
+  document.getElementById('editingPresentationId').value = editId || '';
+  document.getElementById('registrationFormTitle').textContent = editId ? 'Edit Registration' : 'New Registration';
+  document.getElementById('teamMembersContainer').innerHTML = '';
 
-  if (editingId) {
-    editingId.value =
-      editId || '';
+  if (editId) {
+    const data = await apiRequest(`/api/presentations/${editId}`);
+    const p = data.presentation;
+    document.getElementById('regTopic').value = p.topic;
+    document.getElementById('regSubject').value = p.subject;
+    document.getElementById('regSection').value = p.section;
+    document.getElementById('regDate').value = p.presentation_date;
+    document.getElementById('regTime').value = p.presentation_time.slice(0, 5);
+    document.getElementById('regTeamType').value = p.team_type;
+    generateTeamFields(p.team_type, data.members);
   }
-
-  if (title) {
-    title.textContent =
-      editId
-        ? 'Edit Registration'
-        : 'New Registration';
-  }
-
-  if (membersContainer) {
-    membersContainer.innerHTML =
-      '';
-  }
-
-  if (!editId) {
-    return;
-  }
-
-  const data =
-    await apiRequest(
-      `/api/presentations/${encodeURIComponent(
-        editId
-      )}`
-    );
-
-  const presentation =
-    data.presentation;
-
-  const topic =
-    document.getElementById(
-      'regTopic'
-    );
-
-  const subject =
-    document.getElementById(
-      'regSubject'
-    );
-
-  const section =
-    document.getElementById(
-      'regSection'
-    );
-
-  const date =
-    document.getElementById(
-      'regDate'
-    );
-
-  const time =
-    document.getElementById(
-      'regTime'
-    );
-
-  const teamType =
-    document.getElementById(
-      'regTeamType'
-    );
-
-  if (topic) {
-    topic.value =
-      presentation.topic ||
-      '';
-  }
-
-  if (subject) {
-    subject.value =
-      presentation.subject ||
-      '';
-  }
-
-  if (section) {
-    section.value =
-      presentation.section ||
-      '';
-  }
-
-  if (date) {
-    date.value =
-      presentation.presentation_date ||
-      '';
-  }
-
-  if (time) {
-    time.value =
-      presentation.presentation_time
-        ? presentation.presentation_time.slice(
-            0,
-            5
-          )
-        : '';
-  }
-
-  if (teamType) {
-    teamType.value =
-      presentation.team_type ||
-      '';
-  }
-
-  generateTeamFields(
-    presentation.team_type,
-    data.members || []
-  );
 }
 
-function generateTeamFields(
-  teamType,
-  existingMembers = []
-) {
-  const container =
-    document.getElementById(
-      'teamMembersContainer'
-    );
+function generateTeamFields(teamType, existingMembers = []) {
+  const container = document.getElementById('teamMembersContainer');
+  container.innerHTML = '';
+  const sizeMap = { 'Individual': 1, 'Team of 2': 2, 'Team of 3': 3, 'Team of 4': 4, 'Team of 5': 5 };
+  const count = sizeMap[teamType] || 0;
 
-  if (!container) {
-    return;
-  }
-
-  container.innerHTML =
-    '';
-
-  const sizeMap = {
-    'Individual': 1,
-    'Team of 2': 2,
-    'Team of 3': 3,
-    'Team of 4': 4,
-    'Team of 5': 5
-  };
-
-  const count =
-    sizeMap[teamType] ||
-    0;
-
-  for (
-    let index = 0;
-    index < count;
-    index++
-  ) {
-    const existing =
-      existingMembers[
-        index
-      ] || {};
-
-    const card =
-      document.createElement(
-        'div'
-      );
-
-    card.className =
-      'member-card';
-
-    card.dataset.memberIndex =
-      index;
-
-    card.innerHTML =
-      `
-        <h4>
-          Student ${index + 1}
-        </h4>
-
-        <div class="form-grid">
-
-          <div class="form-field">
-            <label>
-              Name
-            </label>
-
-            <input
-              type="text"
-              class="member-name"
-              required
-              value="${escapeHtml(
-                existing.name || ''
-              )}"
-            />
-          </div>
-
-          <div class="form-field">
-            <label>
-              Roll Number
-            </label>
-
-            <input
-              type="text"
-              class="member-roll"
-              required
-              value="${escapeHtml(
-                existing.roll_number || ''
-              )}"
-            />
-          </div>
-
-          <div class="form-field">
-            <label>
-              Email
-            </label>
-
-            <input
-              type="email"
-              class="member-email"
-              required
-              value="${escapeHtml(
-                existing.email || ''
-              )}"
-            />
-          </div>
-
-          <div class="form-field">
-            <label>
-              Phone Number
-            </label>
-
-            <input
-              type="tel"
-              class="member-phone"
-              required
-              value="${escapeHtml(
-                existing.phone || ''
-              )}"
-            />
-          </div>
-
+  for (let i = 0; i < count; i++) {
+    const existing = existingMembers[i] || {};
+    const card = document.createElement('div');
+    card.className = 'member-card';
+    card.dataset.memberIndex = i;
+    card.innerHTML = `
+      <h4>Student ${i + 1}</h4>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Name</label>
+          <input type="text" class="member-name" required value="${escapeHtml(existing.name || '')}" />
         </div>
-      `;
-
-    container.appendChild(
-      card
-    );
+        <div class="form-field">
+          <label>Roll Number</label>
+          <input type="text" class="member-roll" required value="${escapeHtml(existing.roll_number || '')}" />
+        </div>
+        <div class="form-field">
+          <label>Email</label>
+          <input type="email" class="member-email" required value="${escapeHtml(existing.email || '')}" />
+        </div>
+        <div class="form-field">
+          <label>Phone Number</label>
+          <input type="tel" class="member-phone" required value="${escapeHtml(existing.phone || '')}" />
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
   }
 }
 
 function collectMembersFromForm() {
-  const cards =
-    document.querySelectorAll(
-      '#teamMembersContainer .member-card'
-    );
-
-  return Array.from(
-    cards
-  ).map(
-    card => ({
-      name:
-        card.querySelector(
-          '.member-name'
-        )?.value
-          .trim() || '',
-
-      rollNumber:
-        card.querySelector(
-          '.member-roll'
-        )?.value
-          .trim() || '',
-
-      email:
-        card.querySelector(
-          '.member-email'
-        )?.value
-          .trim() || '',
-
-      phone:
-        card.querySelector(
-          '.member-phone'
-        )?.value
-          .trim() || ''
-    })
-  );
+  const cards = document.querySelectorAll('#teamMembersContainer .member-card');
+  return Array.from(cards).map(card => ({
+    name: card.querySelector('.member-name').value.trim(),
+    rollNumber: card.querySelector('.member-roll').value.trim(),
+    email: card.querySelector('.member-email').value.trim(),
+    phone: card.querySelector('.member-phone').value.trim()
+  }));
 }
 
-function validateRegistrationForm(
-  payload
-) {
-  if (!payload.topic) {
-    return 'Presentation topic is required.';
+function validateRegistrationForm(payload) {
+  if (!payload.topic) return 'Presentation topic is required.';
+  if (!payload.subject) return 'Subject is required.';
+  if (!payload.section) return 'Please select a section.';
+  if (!payload.teamType) return 'Please select a team type.';
+  if (!payload.presentationDate) return 'Please select a presentation date.';
+  if (!payload.presentationTime) return 'Please select a presentation time.';
+  if (!payload.members || payload.members.length === 0) return 'At least one team member is required.';
+
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRe = /^[0-9]{7,15}$/;
+  const rolls = new Set(), emails = new Set();
+
+  for (const [i, m] of payload.members.entries()) {
+    if (!m.name) return `Member ${i + 1}: name is required.`;
+    if (!m.rollNumber) return `Member ${i + 1}: roll number is required.`;
+    if (!emailRe.test(m.email)) return `Member ${i + 1}: valid email is required.`;
+    if (!phoneRe.test(m.phone)) return `Member ${i + 1}: valid phone number is required.`;
+
+    const rollKey = m.rollNumber.toLowerCase();
+    const emailKey = m.email.toLowerCase();
+    if (rolls.has(rollKey)) return `Duplicate roll number: ${m.rollNumber}`;
+    if (emails.has(emailKey)) return `Duplicate member email: ${m.email}`;
+    rolls.add(rollKey);
+    emails.add(emailKey);
   }
-
-  if (!payload.subject) {
-    return 'Subject is required.';
-  }
-
-  if (!payload.section) {
-    return 'Please select a section.';
-  }
-
-  if (!payload.teamType) {
-    return 'Please select a team type.';
-  }
-
-  if (
-    !payload.presentationDate
-  ) {
-    return 'Please select a presentation date.';
-  }
-
-  if (
-    !payload.presentationTime
-  ) {
-    return 'Please select a presentation time.';
-  }
-
-  if (
-    !Array.isArray(
-      payload.members
-    ) ||
-    payload.members.length === 0
-  ) {
-    return 'At least one team member is required.';
-  }
-
-  const emailRegex =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  const phoneRegex =
-    /^[0-9]{7,15}$/;
-
-  const rolls =
-    new Set();
-
-  const emails =
-    new Set();
-
-  for (
-    const [
-      index,
-      member
-    ]
-      of payload.members.entries()
-  ) {
-    if (!member.name) {
-      return `Member ${
-        index + 1
-      }: name is required.`;
-    }
-
-    if (!member.rollNumber) {
-      return `Member ${
-        index + 1
-      }: roll number is required.`;
-    }
-
-    if (
-      !emailRegex.test(
-        member.email
-      )
-    ) {
-      return `Member ${
-        index + 1
-      }: valid email is required.`;
-    }
-
-    if (
-      !phoneRegex.test(
-        member.phone
-      )
-    ) {
-      return `Member ${
-        index + 1
-      }: valid phone number is required.`;
-    }
-
-    const rollKey =
-      member.rollNumber
-        .trim()
-        .toLowerCase();
-
-    const emailKey =
-      member.email
-        .trim()
-        .toLowerCase();
-
-    if (
-      rolls.has(
-        rollKey
-      )
-    ) {
-      return `Duplicate roll number: ${member.rollNumber}`;
-    }
-
-    if (
-      emails.has(
-        emailKey
-      )
-    ) {
-      return `Duplicate member email: ${member.email}`;
-    }
-
-    rolls.add(
-      rollKey
-    );
-
-    emails.add(
-      emailKey
-    );
-  }
-
   return null;
 }
 
-async function submitRegistration(
-  event
-) {
-  event.preventDefault();
-
-  const button =
-    document.getElementById(
-      'submitRegistrationBtn'
-    );
-
-  const editingId =
-    document.getElementById(
-      'editingPresentationId'
-    )?.value || '';
-
-  const topic =
-    document.getElementById(
-      'regTopic'
-    )?.value
-      .trim() || '';
-
-  const subject =
-    document.getElementById(
-      'regSubject'
-    )?.value
-      .trim() || '';
-
-  const section =
-    document.getElementById(
-      'regSection'
-    )?.value || '';
-
-  const teamType =
-    document.getElementById(
-      'regTeamType'
-    )?.value || '';
-
-  const presentationDate =
-    document.getElementById(
-      'regDate'
-    )?.value || '';
-
-  const presentationTime =
-    document.getElementById(
-      'regTime'
-    )?.value || '';
+async function submitRegistration(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submitRegistrationBtn');
+  const editId = document.getElementById('editingPresentationId').value;
 
   const payload = {
-    topic,
-    subject,
-    section,
-    teamType,
-    presentationDate,
-    presentationTime,
-    members:
-      collectMembersFromForm()
+    topic: document.getElementById('regTopic').value.trim(),
+    subject: document.getElementById('regSubject').value.trim(),
+    section: document.getElementById('regSection').value,
+    teamType: document.getElementById('regTeamType').value,
+    presentationDate: document.getElementById('regDate').value,
+    presentationTime: document.getElementById('regTime').value,
+    members: collectMembersFromForm()
   };
 
-  const validationError =
-    validateRegistrationForm(
-      payload
-    );
-
+  const validationError = validateRegistrationForm(payload);
   if (validationError) {
-    showToast(
-      validationError,
-      'warning'
-    );
-
+    showToast(validationError, 'warning');
     return;
   }
 
-  setButtonLoading(
-    button,
-    true
-  );
-
+  setButtonLoading(btn, true);
   try {
-    if (editingId) {
-      await apiRequest(
-        `/api/presentations/${encodeURIComponent(
-          editingId
-        )}`,
-        {
-          method: 'PUT',
-          body: payload
-        }
-      );
-
-      showToast(
-        'Registration updated successfully.',
-        'success'
-      );
-
-      await showView(
-        'my-registrations'
-      );
-
+    if (editId) {
+      await apiRequest(`/api/presentations/${editId}`, { method: 'PUT', body: payload });
+      showToast('Registration updated successfully.', 'success');
+      showView('my-registrations');
     } else {
-      const data =
-        await apiRequest(
-          '/api/presentations',
-          {
-            method: 'POST',
-            body: payload
-          }
-        );
-
-      showRegistrationSuccessModal(
-        data.presentation
-      );
+      const data = await apiRequest('/api/presentations', { method: 'POST', body: payload });
+      showRegistrationSuccessModal(data.presentation);
     }
-
-  } catch (error) {
-    console.error(
-      'Submit registration error:',
-      error
-    );
-
-    showToast(
-      error.message ||
-        'Could not save registration.',
-      'error'
-    );
-
+  } catch (err) {
+    showToast(err.message || 'Could not save registration.', 'error');
   } finally {
-    setButtonLoading(
-      button,
-      false
-    );
+    setButtonLoading(btn, false);
   }
 }
 
-function showRegistrationSuccessModal(
-  presentation
-) {
-  const overlay =
-    document.getElementById(
-      'successModalOverlay'
-    );
+function showRegistrationSuccessModal(p) {
+  const overlay = document.getElementById('successModalOverlay');
+  document.getElementById('successDetails').innerHTML = `
+    <div class="detail-row"><span>Registration ID</span><span>${p.registration_id}</span></div>
+    <div class="detail-row"><span>Topic</span><span>${escapeHtml(p.topic)}</span></div>
+    <div class="detail-row"><span>Subject</span><span>${escapeHtml(p.subject)}</span></div>
+    <div class="detail-row"><span>Section</span><span>Section ${p.section}</span></div>
+    <div class="detail-row"><span>Team Type</span><span>${p.team_type}</span></div>
+    <div class="detail-row"><span>Date</span><span>${formatDate(p.presentation_date)}</span></div>
+    <div class="detail-row"><span>Time</span><span>${p.presentation_time}</span></div>
+    <div class="detail-row"><span>Members</span><span>${p.member_count}</span></div>
+    <div class="detail-row"><span>Status</span><span>${p.status}</span></div>
+  `;
+  overlay.classList.remove('hidden');
 
-  const details =
-    document.getElementById(
-      'successDetails'
-    );
-
-  if (
-    !overlay ||
-    !details
-  ) {
-    showToast(
-      'Registration submitted successfully.',
-      'success'
-    );
-
-    return;
-  }
-
-  details.innerHTML =
-    `
-      <div class="detail-row">
-        <span>
-          Registration ID
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.registration_id
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Topic
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.topic
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Subject
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.subject
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Section
-        </span>
-
-        <span>
-          Section
-          ${escapeHtml(
-            presentation.section
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Team Type
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.team_type
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Date
-        </span>
-
-        <span>
-          ${formatDate(
-            presentation.presentation_date
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Time
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.presentation_time
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Members
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.member_count
-          )}
-        </span>
-      </div>
-
-      <div class="detail-row">
-        <span>
-          Status
-        </span>
-
-        <span>
-          ${escapeHtml(
-            presentation.status
-          )}
-        </span>
-      </div>
-    `;
-
-  overlay.classList.remove(
-    'hidden'
-  );
-
-  const viewButton =
-    document.getElementById(
-      'successViewBtn'
-    );
-
-  if (viewButton) {
-    viewButton.onclick =
-      async () => {
-        overlay.classList.add(
-          'hidden'
-        );
-
-        await showView(
-          'registration-details',
-          {
-            id:
-              presentation.id
-          }
-        );
-      };
-  }
-
-  const printButton =
-    document.getElementById(
-      'successPrintBtn'
-    );
-
-  if (printButton) {
-    printButton.onclick =
-      async () => {
-        overlay.classList.add(
-          'hidden'
-        );
-
-        await showView(
-          'registration-details',
-          {
-            id:
-              presentation.id
-          }
-        );
-
-        window.print();
-      };
-  }
-
-  const anotherButton =
-    document.getElementById(
-      'successAnotherBtn'
-    );
-
-  if (anotherButton) {
-    anotherButton.onclick =
-      async () => {
-        overlay.classList.add(
-          'hidden'
-        );
-
-        await showView(
-          'new-registration'
-        );
-      };
-  }
+  document.getElementById('successViewBtn').onclick = () => {
+    overlay.classList.add('hidden');
+    showView('registration-details', { id: p.id });
+  };
+  document.getElementById('successPrintBtn').onclick = () => {
+    overlay.classList.add('hidden');
+    showView('registration-details', { id: p.id }).then(() => window.print());
+  };
+  document.getElementById('successAnotherBtn').onclick = () => {
+    overlay.classList.add('hidden');
+    showView('new-registration');
+  };
 }
 
-async function viewRegistration(
-  id
-) {
-  const panel =
-    document.getElementById(
-      'registrationDetailsPanel'
-    );
+async function viewRegistration(id) {
+  const panel = document.getElementById('registrationDetailsPanel');
+  panel.innerHTML = `<div class="page-loading">Loading details...</div>`;
 
-  if (!panel) {
-    return;
-  }
+  const data = await apiRequest(`/api/presentations/${id}`);
+  const p = data.presentation;
+  const members = data.members;
 
-  if (!id) {
-    panel.innerHTML =
-      `
-        <div class="empty-state">
-          Registration ID is missing.
-        </div>
-      `;
+  const membersRows = members.map(m => `
+    <tr><td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.roll_number)}</td><td>${escapeHtml(m.email)}</td><td>${escapeHtml(m.phone)}</td></tr>
+  `).join('');
 
-    return;
-  }
-
-  panel.innerHTML =
-    `
-      <div class="page-loading">
-        Loading details...
-      </div>
-    `;
-
-  const data =
-    await apiRequest(
-      `/api/presentations/${encodeURIComponent(
-        id
-      )}`
-    );
-
-  const presentation =
-    data.presentation;
-
-  const members =
-    Array.isArray(
-      data.members
-    )
-      ? data.members
-      : [];
-
-  const membersRows =
-    members
-      .map(
-        member => `
-          <tr>
-
-            <td>
-              ${escapeHtml(
-                member.name
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                member.roll_number
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                member.email
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                member.phone
-              )}
-            </td>
-
-          </tr>
-        `
-      )
-      .join('');
-
-  panel.innerHTML =
-    `
-      <div class="detail-grid">
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Registration ID
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              presentation.registration_id
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Status
-          </div>
-
-          <div class="detail-value">
-            ${statusBadge(
-              presentation.status
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Topic
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              presentation.topic
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Subject
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              presentation.subject
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Section
-          </div>
-
-          <div class="detail-value">
-            Section
-            ${escapeHtml(
-              presentation.section
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Team Type
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              presentation.team_type
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Date
-          </div>
-
-          <div class="detail-value">
-            ${formatDate(
-              presentation.presentation_date
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Time
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              presentation.presentation_time
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      <h3 class="form-section-title">
-        Team Members
-      </h3>
-
-      <div class="table-wrap">
-
-        <table class="data-table">
-
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Roll Number</th>
-              <th>Email</th>
-              <th>Phone</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${
-              membersRows ||
-              `
-                <tr>
-                  <td colspan="4">
-                    No team members found.
-                  </td>
-                </tr>
-              `
-            }
-          </tbody>
-
-        </table>
-
-      </div>
-    `;
+  panel.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-label">Registration ID</div><div class="detail-value">${p.registration_id}</div></div>
+      <div class="detail-item"><div class="detail-label">Status</div><div class="detail-value">${statusBadge(p.status)}</div></div>
+      <div class="detail-item"><div class="detail-label">Topic</div><div class="detail-value">${escapeHtml(p.topic)}</div></div>
+      <div class="detail-item"><div class="detail-label">Subject</div><div class="detail-value">${escapeHtml(p.subject)}</div></div>
+      <div class="detail-item"><div class="detail-label">Section</div><div class="detail-value">Section ${p.section}</div></div>
+      <div class="detail-item"><div class="detail-label">Team Type</div><div class="detail-value">${p.team_type}</div></div>
+      <div class="detail-item"><div class="detail-label">Date</div><div class="detail-value">${formatDate(p.presentation_date)}</div></div>
+      <div class="detail-item"><div class="detail-label">Time</div><div class="detail-value">${p.presentation_time}</div></div>
+    </div>
+    <h3 class="form-section-title">Team Members</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Roll Number</th><th>Email</th><th>Phone</th></tr></thead>
+        <tbody>${membersRows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function printRegistration() {
@@ -2506,1238 +561,246 @@ function printRegistration() {
 }
 
 async function loadProfile() {
-  const panel =
-    document.getElementById(
-      'profilePanel'
-    );
+  const panel = document.getElementById('profilePanel');
+  panel.innerHTML = `<div class="page-loading">Loading profile...</div>`;
 
-  if (!panel) {
-    return;
-  }
+  const data = await apiRequest('/api/profile');
+  const p = data.profile;
 
-  panel.innerHTML =
-    `
-      <div class="page-loading">
-        Loading profile...
-      </div>
-    `;
-
-  const data =
-    await apiRequest(
-      '/api/profile'
-    );
-
-  const profile =
-    data.profile;
-
-  panel.innerHTML =
-    `
-      <div class="detail-grid">
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Name
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              profile.name
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Email
-          </div>
-
-          <div class="detail-value">
-            ${escapeHtml(
-              profile.email
-            )}
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-label">
-            Role
-          </div>
-
-          <div class="detail-value">
-            ${capitalize(
-              profile.role
-            )}
-          </div>
-        </div>
-
-        ${
-          profile.role ===
-          'student'
-            ? `
-              <div class="detail-item">
-
-                <div class="detail-label">
-                  Registration Count
-                </div>
-
-                <div class="detail-value">
-                  ${escapeHtml(
-                    profile.registrationCount
-                  )}
-                </div>
-
-              </div>
-            `
-            : ''
-        }
-
-        <div class="detail-item">
-
-          <div class="detail-label">
-            Account Created
-          </div>
-
-          <div class="detail-value">
-            ${formatDate(
-              profile.created_at
-            )}
-          </div>
-
-        </div>
-
-      </div>
-    `;
+  panel.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-label">Name</div><div class="detail-value">${escapeHtml(p.name)}</div></div>
+      <div class="detail-item"><div class="detail-label">Email</div><div class="detail-value">${escapeHtml(p.email)}</div></div>
+      <div class="detail-item"><div class="detail-label">Role</div><div class="detail-value">${capitalize(p.role)}</div></div>
+      ${p.role === 'student' ? `<div class="detail-item"><div class="detail-label">Registration Count</div><div class="detail-value">${p.registrationCount}</div></div>` : ''}
+      <div class="detail-item"><div class="detail-label">Account Created</div><div class="detail-value">${formatDate(p.created_at)}</div></div>
+    </div>
+  `;
 }
 
 async function loadAdminDashboard() {
-  const grid =
-    document.getElementById(
-      'adminStatsGrid'
-    );
+  const grid = document.getElementById('adminStatsGrid');
+  grid.innerHTML = `<div class="page-loading">Loading dashboard...</div>`;
 
-  if (!grid) {
-    return;
-  }
+  const data = await apiRequest('/api/admin/dashboard');
+  const s = data.stats;
 
-  grid.innerHTML =
-    `
-      <div class="page-loading">
-        Loading dashboard...
-      </div>
-    `;
-
-  const data =
-    await apiRequest(
-      '/api/admin/dashboard'
-    );
-
-  const stats =
-    data.stats;
-
-  grid.innerHTML =
-    `
-      <div class="stat-card accent-navy">
-        <div class="stat-value">
-          ${stats.totalStudents}
-        </div>
-
-        <div class="stat-label">
-          Total Students
-        </div>
-      </div>
-
-      <div class="stat-card accent-navy">
-        <div class="stat-value">
-          ${stats.totalPresentations}
-        </div>
-
-        <div class="stat-label">
-          Total Presentations
-        </div>
-      </div>
-
-      <div class="stat-card accent-blue">
-        <div class="stat-value">
-          ${stats.Registered}
-        </div>
-
-        <div class="stat-label">
-          Registered
-        </div>
-      </div>
-
-      <div class="stat-card accent-amber">
-        <div class="stat-value">
-          ${stats.Pending}
-        </div>
-
-        <div class="stat-label">
-          Pending
-        </div>
-      </div>
-
-      <div class="stat-card accent-green">
-        <div class="stat-value">
-          ${stats.Completed}
-        </div>
-
-        <div class="stat-label">
-          Completed
-        </div>
-      </div>
-
-      <div class="stat-card accent-red">
-        <div class="stat-value">
-          ${stats.Cancelled}
-        </div>
-
-        <div class="stat-label">
-          Cancelled
-        </div>
-      </div>
-
-      <div class="stat-card accent-blue">
-        <div class="stat-value">
-          ${stats.sectionA}
-        </div>
-
-        <div class="stat-label">
-          Section A
-        </div>
-      </div>
-
-      <div class="stat-card accent-blue">
-        <div class="stat-value">
-          ${stats.sectionB}
-        </div>
-
-        <div class="stat-label">
-          Section B
-        </div>
-      </div>
-
-      <div class="stat-card accent-blue">
-        <div class="stat-value">
-          ${stats.sectionC}
-        </div>
-
-        <div class="stat-label">
-          Section C
-        </div>
-      </div>
-    `;
+  grid.innerHTML = `
+    <div class="stat-card accent-navy"><div class="stat-value">${s.totalStudents}</div><div class="stat-label">Total Students</div></div>
+    <div class="stat-card accent-navy"><div class="stat-value">${s.totalPresentations}</div><div class="stat-label">Total Presentations</div></div>
+    <div class="stat-card accent-blue"><div class="stat-value">${s.Registered}</div><div class="stat-label">Registered</div></div>
+    <div class="stat-card accent-amber"><div class="stat-value">${s.Pending}</div><div class="stat-label">Pending</div></div>
+    <div class="stat-card accent-green"><div class="stat-value">${s.Completed}</div><div class="stat-label">Completed</div></div>
+    <div class="stat-card accent-red"><div class="stat-value">${s.Cancelled}</div><div class="stat-label">Cancelled</div></div>
+    <div class="stat-card accent-blue"><div class="stat-value">${s.sectionA}</div><div class="stat-label">Section A</div></div>
+    <div class="stat-card accent-blue"><div class="stat-value">${s.sectionB}</div><div class="stat-label">Section B</div></div>
+    <div class="stat-card accent-blue"><div class="stat-value">${s.sectionC}</div><div class="stat-label">Section C</div></div>
+  `;
 }
 
-let searchDebounceTimer =
-  null;
+let searchDebounceTimer = null;
 
 function debounceSearch() {
-  clearTimeout(
-    searchDebounceTimer
-  );
-
-  searchDebounceTimer =
-    setTimeout(
-      () => {
-        searchRegistrations();
-      },
-      350
-    );
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(searchRegistrations, 350);
 }
 
 async function searchRegistrations() {
-  const list =
-    document.getElementById(
-      'adminRegistrationsList'
-    );
+  const listEl = document.getElementById('adminRegistrationsList');
+  listEl.innerHTML = `<div class="page-loading">Loading registrations...</div>`;
 
-  if (!list) {
-    return;
-  }
+  const params = new URLSearchParams();
+  const search = document.getElementById('adminSearchInput').value.trim();
+  const section = document.getElementById('adminFilterSection').value;
+  const subject = document.getElementById('adminFilterSubject').value.trim();
+  const teamType = document.getElementById('adminFilterTeamType').value;
+  const status = document.getElementById('adminFilterStatus').value;
+  const date = document.getElementById('adminFilterDate').value;
+  const sortBy = document.getElementById('adminSortBy').value;
 
-  list.innerHTML =
-    `
-      <div class="page-loading">
-        Loading registrations...
-      </div>
-    `;
+  if (search) params.set('search', search);
+  if (section) params.set('section', section);
+  if (subject) params.set('subject', subject);
+  if (teamType) params.set('teamType', teamType);
+  if (status) params.set('status', status);
+  if (date) params.set('date', date);
+  if (sortBy) params.set('sortBy', sortBy);
 
-  const params =
-    new URLSearchParams();
-
-  const searchInput =
-    document.getElementById(
-      'adminSearchInput'
-    );
-
-  const sectionInput =
-    document.getElementById(
-      'adminFilterSection'
-    );
-
-  const subjectInput =
-    document.getElementById(
-      'adminFilterSubject'
-    );
-
-  const teamTypeInput =
-    document.getElementById(
-      'adminFilterTeamType'
-    );
-
-  const statusInput =
-    document.getElementById(
-      'adminFilterStatus'
-    );
-
-  const dateInput =
-    document.getElementById(
-      'adminFilterDate'
-    );
-
-  const sortInput =
-    document.getElementById(
-      'adminSortBy'
-    );
-
-  const search =
-    searchInput?.value
-      .trim() || '';
-
-  const section =
-    sectionInput?.value ||
-    '';
-
-  const subject =
-    subjectInput?.value
-      .trim() || '';
-
-  const teamType =
-    teamTypeInput?.value ||
-    '';
-
-  const status =
-    statusInput?.value ||
-    '';
-
-  const date =
-    dateInput?.value ||
-    '';
-
-  const sortBy =
-    sortInput?.value ||
-    '';
-
-  if (search) {
-    params.set(
-      'search',
-      search
-    );
-  }
-
-  if (section) {
-    params.set(
-      'section',
-      section
-    );
-  }
-
-  if (subject) {
-    params.set(
-      'subject',
-      subject
-    );
-  }
-
-  if (teamType) {
-    params.set(
-      'teamType',
-      teamType
-    );
-  }
-
-  if (status) {
-    params.set(
-      'status',
-      status
-    );
-  }
-
-  if (date) {
-    params.set(
-      'date',
-      date
-    );
-  }
-
-  if (sortBy) {
-    params.set(
-      'sortBy',
-      sortBy
-    );
-  }
-
-  try {
-    const query =
-      params.toString();
-
-    const data =
-      await apiRequest(
-        `/api/admin/presentations${
-          query
-            ? `?${query}`
-            : ''
-        }`
-      );
-
-    renderAdminRegistrationsTable(
-      data.presentations ||
-        [],
-      list
-    );
-
-  } catch (error) {
-    console.error(
-      'Admin search error:',
-      error
-    );
-
-    list.innerHTML =
-      `
-        <div class="empty-state">
-          <p>
-            ${
-              escapeHtml(
-                error.message ||
-                  'Could not load registrations.'
-              )
-            }
-          </p>
-        </div>
-      `;
-  }
+  const data = await apiRequest(`/api/admin/presentations?${params.toString()}`);
+  renderAdminRegistrationsTable(data.presentations, listEl);
 }
 
 function filterRegistrations() {
   searchRegistrations();
 }
 
-function renderAdminRegistrationsTable(
-  list,
-  container
-) {
-  if (
-    !list ||
-    list.length === 0
-  ) {
-    container.innerHTML =
-      `
-        <div class="empty-state">
-          <p>
-            No registrations match your search or filters.
-          </p>
-        </div>
-      `;
-
+function renderAdminRegistrationsTable(list, container) {
+  if (!list || list.length === 0) {
+    container.innerHTML = `<div class="empty-state"><p>No registrations match your search or filters.</p></div>`;
     return;
   }
 
-  const rows =
-    list
-      .map(
-        presentation => `
-          <tr
-            data-id="${escapeHtml(
-              presentation.id
-            )}"
-          >
+  const rows = list.map(p => `
+    <tr data-id="${p.id}">
+      <td>${p.registration_id}</td>
+      <td>${escapeHtml(p.topic)}</td>
+      <td>${escapeHtml(p.student_name)}</td>
+      <td>${escapeHtml(p.subject)}</td>
+      <td>Section ${p.section}</td>
+      <td>${p.team_type}</td>
+      <td>${p.member_count}</td>
+      <td>${formatDate(p.presentation_date)}</td>
+      <td>${p.presentation_time}</td>
+      <td>${statusBadge(p.status)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline admin-view">View</button>
+        <button class="btn btn-sm btn-outline admin-status">Status</button>
+        <button class="btn btn-sm btn-danger admin-delete">Delete</button>
+      </td>
+    </tr>
+  `).join('');
 
-            <td>
-              ${escapeHtml(
-                presentation.registration_id
-              )}
-            </td>
+  container.innerHTML = `<table class="data-table">
+    <thead><tr>
+      <th>Reg. ID</th><th>Topic</th><th>Student</th><th>Subject</th><th>Section</th><th>Team Type</th><th>Members</th><th>Date</th><th>Time</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 
-            <td>
-              ${escapeHtml(
-                presentation.topic
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.student_name
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.subject
-              )}
-            </td>
-
-            <td>
-              Section
-              ${escapeHtml(
-                presentation.section
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.team_type
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.member_count
-              )}
-            </td>
-
-            <td>
-              ${formatDate(
-                presentation.presentation_date
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                presentation.presentation_time
-              )}
-            </td>
-
-            <td>
-              ${statusBadge(
-                presentation.status
-              )}
-            </td>
-
-            <td>
-
-              <button
-                type="button"
-                class="btn btn-sm btn-outline admin-view"
-              >
-                View
-              </button>
-
-              <button
-                type="button"
-                class="btn btn-sm btn-outline admin-status"
-              >
-                Status
-              </button>
-
-              <button
-                type="button"
-                class="btn btn-sm btn-danger admin-delete"
-              >
-                Delete
-              </button>
-
-            </td>
-
-          </tr>
-        `
-      )
-      .join('');
-
-  container.innerHTML =
-    `
-      <div class="table-wrap">
-
-        <table class="data-table">
-
-          <thead>
-
-            <tr>
-              <th>Reg. ID</th>
-              <th>Topic</th>
-              <th>Student</th>
-              <th>Subject</th>
-              <th>Section</th>
-              <th>Team Type</th>
-              <th>Members</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-
-          </thead>
-
-          <tbody>
-            ${rows}
-          </tbody>
-
-        </table>
-
-      </div>
-    `;
-
-  container
-    .querySelectorAll(
-      'tr[data-id]'
-    )
-    .forEach(
-      row => {
-        const id =
-          row.dataset.id;
-
-        const viewButton =
-          row.querySelector(
-            '.admin-view'
-          );
-
-        if (viewButton) {
-          viewButton.addEventListener(
-            'click',
-            () => {
-              showView(
-                'registration-details',
-                {
-                  id
-                }
-              );
-            }
-          );
-        }
-
-        const statusButton =
-          row.querySelector(
-            '.admin-status'
-          );
-
-        if (statusButton) {
-          statusButton.addEventListener(
-            'click',
-            () => {
-              openStatusModal(
-                id,
-                row
-              );
-            }
-          );
-        }
-
-        const deleteButton =
-          row.querySelector(
-            '.admin-delete'
-          );
-
-        if (deleteButton) {
-          deleteButton.addEventListener(
-            'click',
-            () => {
-              deleteRegistrationAsAdmin(
-                id
-              );
-            }
-          );
-        }
-      }
-    );
+  container.querySelectorAll('tr[data-id]').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector('.admin-view').addEventListener('click', () => showView('registration-details', { id }));
+    row.querySelector('.admin-status').addEventListener('click', () => openStatusModal(id, row));
+    row.querySelector('.admin-delete').addEventListener('click', () => deleteRegistrationAsAdmin(id));
+  });
 }
 
-function openStatusModal(
-  id,
-  row
-) {
-  const overlay =
-    document.getElementById(
-      'statusModalOverlay'
-    );
+function openStatusModal(id, row) {
+  const overlay = document.getElementById('statusModalOverlay');
+  const select = document.getElementById('statusModalSelect');
+  const currentBadge = row.querySelector('.badge');
+  const currentStatus = currentBadge ? currentBadge.textContent.trim() : 'Pending';
+  select.value = currentStatus;
+  overlay.classList.remove('hidden');
 
-  const select =
-    document.getElementById(
-      'statusModalSelect'
-    );
-
-  const confirmButton =
-    document.getElementById(
-      'statusModalConfirmBtn'
-    );
-
-  const cancelButton =
-    document.getElementById(
-      'statusModalCancelBtn'
-    );
-
-  if (
-    !overlay ||
-    !select ||
-    !confirmButton ||
-    !cancelButton
-  ) {
-    return;
-  }
-
-  const badge =
-    row.querySelector(
-      '.badge'
-    );
-
-  const currentStatus =
-    badge
-      ? badge.textContent
-          .trim()
-      : 'Pending';
-
-  select.value =
-    currentStatus;
-
-  overlay.classList.remove(
-    'hidden'
-  );
+  const confirmBtn = document.getElementById('statusModalConfirmBtn');
+  const cancelBtn = document.getElementById('statusModalCancelBtn');
 
   function cleanup() {
-    overlay.classList.add(
-      'hidden'
-    );
-
-    confirmButton.removeEventListener(
-      'click',
-      onConfirm
-    );
-
-    cancelButton.removeEventListener(
-      'click',
-      onCancel
-    );
+    overlay.classList.add('hidden');
+    confirmBtn.removeEventListener('click', onConfirm);
+    cancelBtn.removeEventListener('click', onCancel);
   }
-
   async function onConfirm() {
     try {
-      confirmButton.disabled =
-        true;
-
-      await updateStatus(
-        id,
-        select.value
-      );
-
+      await updateStatus(id, select.value);
       cleanup();
-
-    } catch (error) {
-      console.error(
-        'Update status error:',
-        error
-      );
-
-      showToast(
-        error.message ||
-          'Could not update status.',
-        'error'
-      );
-
-    } finally {
-      confirmButton.disabled =
-        false;
+    } catch (err) {
+      showToast(err.message || 'Could not update status.', 'error');
     }
   }
+  function onCancel() { cleanup(); }
 
-  function onCancel() {
-    cleanup();
-  }
-
-  confirmButton.addEventListener(
-    'click',
-    onConfirm
-  );
-
-  cancelButton.addEventListener(
-    'click',
-    onCancel
-  );
+  confirmBtn.addEventListener('click', onConfirm);
+  cancelBtn.addEventListener('click', onCancel);
 }
 
-async function updateStatus(
-  id,
-  status
-) {
-  await apiRequest(
-    `/api/admin/presentations/${encodeURIComponent(
-      id
-    )}/status`,
-    {
-      method: 'PUT',
-
-      body: {
-        status
-      }
-    }
-  );
-
-  showToast(
-    'Status updated successfully.',
-    'success'
-  );
-
-  await searchRegistrations();
+async function updateStatus(id, status) {
+  await apiRequest(`/api/admin/presentations/${id}/status`, { method: 'PUT', body: { status } });
+  showToast('Status updated successfully.', 'success');
+  searchRegistrations();
 }
 
-async function deleteRegistrationAsAdmin(
-  id
-) {
-  const confirmed =
-    await showConfirmModal(
-      'Delete Registration',
-      'This will permanently delete the registration. This action cannot be undone.'
-    );
-
-  if (!confirmed) {
-    return;
-  }
+async function deleteRegistrationAsAdmin(id) {
+  const confirmed = await showConfirmModal('Delete Registration', 'This will permanently delete the registration. This action cannot be undone.');
+  if (!confirmed) return;
 
   try {
-    await apiRequest(
-      `/api/admin/presentations/${encodeURIComponent(
-        id
-      )}`,
-      {
-        method: 'DELETE'
-      }
-    );
-
-    showToast(
-      'Registration deleted successfully.',
-      'success'
-    );
-
-    await searchRegistrations();
-
-  } catch (error) {
-    console.error(
-      'Admin delete error:',
-      error
-    );
-
-    showToast(
-      error.message ||
-        'Could not delete registration.',
-      'error'
-    );
+    await apiRequest(`/api/admin/presentations/${id}`, { method: 'DELETE' });
+    showToast('Registration deleted successfully.', 'success');
+    searchRegistrations();
+  } catch (err) {
+    showToast(err.message || 'Could not delete registration.', 'error');
   }
 }
 
 async function loadAdminStudents() {
-  const list =
-    document.getElementById(
-      'adminStudentsList'
-    );
+  const listEl = document.getElementById('adminStudentsList');
+  listEl.innerHTML = `<div class="page-loading">Loading students...</div>`;
 
-  if (!list) {
+  const data = await apiRequest('/api/admin/students');
+  if (!data.students || data.students.length === 0) {
+    listEl.innerHTML = `<div class="empty-state"><p>No students found.</p></div>`;
     return;
   }
 
-  list.innerHTML =
-    `
-      <div class="page-loading">
-        Loading students...
-      </div>
-    `;
+  const rows = data.students.map(s => `
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td>${escapeHtml(s.email)}</td>
+      <td>${s.registration_count}</td>
+      <td>${formatDate(s.created_at)}</td>
+      <td>${capitalize(s.role)}</td>
+    </tr>
+  `).join('');
 
-  const data =
-    await apiRequest(
-      '/api/admin/students'
-    );
-
-  const students =
-    Array.isArray(
-      data.students
-    )
-      ? data.students
-      : [];
-
-  if (
-    students.length === 0
-  ) {
-    list.innerHTML =
-      `
-        <div class="empty-state">
-          <p>
-            No students found.
-          </p>
-        </div>
-      `;
-
-    return;
-  }
-
-  const rows =
-    students
-      .map(
-        student => `
-          <tr>
-
-            <td>
-              ${escapeHtml(
-                student.name
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                student.email
-              )}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                student.registration_count
-              )}
-            </td>
-
-            <td>
-              ${formatDate(
-                student.created_at
-              )}
-            </td>
-
-            <td>
-              ${capitalize(
-                student.role
-              )}
-            </td>
-
-          </tr>
-        `
-      )
-      .join('');
-
-  list.innerHTML =
-    `
-      <div class="table-wrap">
-
-        <table class="data-table">
-
-          <thead>
-
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Registrations</th>
-              <th>Account Created</th>
-              <th>Role</th>
-            </tr>
-
-          </thead>
-
-          <tbody>
-            ${rows}
-          </tbody>
-
-        </table>
-
-      </div>
-    `;
+  listEl.innerHTML = `<table class="data-table">
+    <thead><tr><th>Name</th><th>Email</th><th>Registrations</th><th>Account Created</th><th>Role</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
-function escapeHtml(
-  value
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return '';
-  }
-
-  return String(value)
-    .replace(
-      /&/g,
-      '&amp;'
-    )
-    .replace(
-      /</g,
-      '&lt;'
-    )
-    .replace(
-      />/g,
-      '&gt;'
-    )
-    .replace(
-      /"/g,
-      '&quot;'
-    )
-    .replace(
-      /'/g,
-      '&#039;'
-    );
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function capitalize(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function formatDate(
-  dateValue
-) {
-  if (!dateValue) {
-    return '';
-  }
+document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('[data-nav]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (el.tagName === 'A') e.preventDefault();
+      showView(el.dataset.nav);
+    });
+  });
 
-  const date =
-    new Date(
-      dateValue
-    );
+  document.getElementById('hamburgerBtn').addEventListener('click', () => {
+    document.getElementById('navLinks').classList.toggle('open');
+  });
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return String(
-      dateValue
-    );
-  }
+  document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  document.getElementById('signupForm').addEventListener('submit', handleSignup);
+  document.getElementById('registrationForm').addEventListener('submit', submitRegistration);
 
-  return date.toLocaleDateString(
-    'en-IN',
-    {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    }
-  );
-}
+  document.getElementById('regTeamType').addEventListener('change', (e) => {
+    generateTeamFields(e.target.value);
+  });
 
-function capitalize(
-  value
-) {
-  if (!value) {
-    return '';
-  }
+  document.getElementById('printRegistrationBtn').addEventListener('click', printRegistration);
 
-  const stringValue =
-    String(value);
+  document.getElementById('adminSearchInput').addEventListener('input', debounceSearch);
+  document.getElementById('adminFilterSection').addEventListener('change', filterRegistrations);
+  document.getElementById('adminFilterSubject').addEventListener('input', debounceSearch);
+  document.getElementById('adminFilterTeamType').addEventListener('change', filterRegistrations);
+  document.getElementById('adminFilterStatus').addEventListener('change', filterRegistrations);
+  document.getElementById('adminFilterDate').addEventListener('change', filterRegistrations);
+  document.getElementById('adminSortBy').addEventListener('change', filterRegistrations);
 
-  return (
-    stringValue
-      .charAt(0)
-      .toUpperCase() +
-    stringValue.slice(1)
-  );
-}
-
-document.addEventListener(
-  'DOMContentLoaded',
-  async () => {
-
-    document
-      .querySelectorAll(
-        '[data-nav]'
-      )
-      .forEach(
-        element => {
-          element.addEventListener(
-            'click',
-            event => {
-
-              if (
-                element.tagName ===
-                'A'
-              ) {
-                event.preventDefault();
-              }
-
-              const view =
-                element.dataset
-                  .nav;
-
-              if (view) {
-                showView(
-                  view
-                );
-              }
-            }
-          );
-        }
-      );
-
-    const hamburger =
-      document.getElementById(
-        'hamburgerBtn'
-      );
-
-    const navLinks =
-      document.getElementById(
-        'navLinks'
-      );
-
-    if (
-      hamburger &&
-      navLinks
-    ) {
-      hamburger.addEventListener(
-        'click',
-        () => {
-          navLinks.classList.toggle(
-            'open'
-          );
-        }
-      );
-    }
-
-    const loginForm =
-      document.getElementById(
-        'loginForm'
-      );
-
-    if (loginForm) {
-      loginForm.addEventListener(
-        'submit',
-        handleLogin
-      );
-    }
-
-    const signupForm =
-      document.getElementById(
-        'signupForm'
-      );
-
-    if (signupForm) {
-      signupForm.addEventListener(
-        'submit',
-        handleSignup
-      );
-    }
-
-    const registrationForm =
-      document.getElementById(
-        'registrationForm'
-      );
-
-    if (registrationForm) {
-      registrationForm.addEventListener(
-        'submit',
-        submitRegistration
-      );
-    }
-
-    const teamType =
-      document.getElementById(
-        'regTeamType'
-      );
-
-    if (teamType) {
-      teamType.addEventListener(
-        'change',
-        event => {
-          generateTeamFields(
-            event.target.value
-          );
-        }
-      );
-    }
-
-    const printButton =
-      document.getElementById(
-        'printRegistrationBtn'
-      );
-
-    if (printButton) {
-      printButton.addEventListener(
-        'click',
-        printRegistration
-      );
-    }
-
-    const adminSearch =
-      document.getElementById(
-        'adminSearchInput'
-      );
-
-    if (adminSearch) {
-      adminSearch.addEventListener(
-        'input',
-        debounceSearch
-      );
-    }
-
-    const adminSection =
-      document.getElementById(
-        'adminFilterSection'
-      );
-
-    if (adminSection) {
-      adminSection.addEventListener(
-        'change',
-        filterRegistrations
-      );
-    }
-
-    const adminSubject =
-      document.getElementById(
-        'adminFilterSubject'
-      );
-
-    if (adminSubject) {
-      adminSubject.addEventListener(
-        'input',
-        debounceSearch
-      );
-    }
-
-    const adminTeamType =
-      document.getElementById(
-        'adminFilterTeamType'
-      );
-
-    if (adminTeamType) {
-      adminTeamType.addEventListener(
-        'change',
-        filterRegistrations
-      );
-    }
-
-    const adminStatus =
-      document.getElementById(
-        'adminFilterStatus'
-      );
-
-    if (adminStatus) {
-      adminStatus.addEventListener(
-        'change',
-        filterRegistrations
-      );
-    }
-
-    const adminDate =
-      document.getElementById(
-        'adminFilterDate'
-      );
-
-    if (adminDate) {
-      adminDate.addEventListener(
-        'change',
-        filterRegistrations
-      );
-    }
-
-    const adminSort =
-      document.getElementById(
-        'adminSortBy'
-      );
-
-    if (adminSort) {
-      adminSort.addEventListener(
-        'change',
-        filterRegistrations
-      );
-    }
-
-    await checkAuthentication();
-
-    const initialView =
-      currentUser
-        ? (
-            currentUser.role ===
-            'admin'
-              ? 'admin-dashboard'
-              : 'student-dashboard'
-          )
-        : 'home';
-
-    await showView(
-      initialView
-    );
-  }
-);
+  await checkAuthentication();
+  const initialView = currentUser ? (currentUser.role === 'admin' ? 'admin-dashboard' : 'student-dashboard') : 'home';
+  showView(initialView);
+});
